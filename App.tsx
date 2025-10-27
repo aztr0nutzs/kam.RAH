@@ -6,17 +6,37 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { StatusBar } from './components/StatusBar';
 import { ConsentModal } from './components/ConsentModal';
 import { HelpOverlay } from './components/HelpOverlay';
+import { AddCameraModal } from './components/AddCameraModal';
+import { Notification } from './components/Notification';
 import { useApi } from './hooks/useApi';
-import type { Camera, GridLayout } from './types';
+import type { Camera, GridLayout, Notification as NotificationType } from './types';
 
 function App() {
-  const { cameras, logs, updateCamera, toggleRecording } = useApi();
+  const [notifications, setNotifications] = useState<NotificationType[]>([]);
+
+  const addNotification = useCallback((message: string, level: NotificationType['level'] = 'info') => {
+      const newNotification: NotificationType = {
+        id: Date.now(),
+        message,
+        level,
+      };
+      // For simplicity, we'll only show one notification at a time.
+      setNotifications([newNotification]);
+  }, []);
+
+  const dismissNotification = useCallback((id: number) => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
+
+  const { cameras, logs, updateCamera, toggleRecording, addCamera, setCameraOffline } = useApi(addNotification);
+  
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
   const [layout, setLayout] = useState<GridLayout>('2x2');
   const [isDeviceListOpen, setIsDeviceListOpen] = useState(true);
   const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
   const [hasConsented, setHasConsented] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [isAddCameraModalOpen, setIsAddCameraModalOpen] = useState(false);
 
   // Auto-select first camera once loaded
   useEffect(() => {
@@ -48,6 +68,10 @@ function App() {
     setIsDeviceListOpen(prev => !prev);
   }, []);
 
+  const handleOpenAddCameraModal = () => setIsAddCameraModalOpen(true);
+  const handleCloseAddCameraModal = () => setIsAddCameraModalOpen(false);
+
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -56,7 +80,7 @@ function App() {
         return;
       }
       
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || isAddCameraModalOpen) {
         return;
       }
 
@@ -89,7 +113,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cameras, layout, isSettingsPanelOpen, showHelp, handleToggleSettings, handleToggleDeviceList]);
+  }, [cameras, layout, isSettingsPanelOpen, showHelp, handleToggleSettings, handleToggleDeviceList, isAddCameraModalOpen]);
   
   if (!hasConsented) {
     return <ConsentModal onConsent={() => setHasConsented(true)} />;
@@ -111,6 +135,7 @@ function App() {
             onSelectCamera={handleSelectCamera}
             isPanelOpen={isDeviceListOpen}
             onTogglePanel={handleToggleDeviceList}
+            onOpenAddCameraModal={handleOpenAddCameraModal}
         />
         <section className="flex-1 flex flex-col p-2 bg-grid-pattern">
           <FeedGrid 
@@ -119,6 +144,7 @@ function App() {
             selectedCamera={selectedCamera} 
             onSelectCamera={handleSelectCamera}
             onToggleRecording={toggleRecording}
+            onSetCameraOffline={setCameraOffline}
           />
         </section>
         {isSettingsPanelOpen && (
@@ -131,6 +157,15 @@ function App() {
       </main>
       <StatusBar logs={logs} cameras={cameras} />
       {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
+      {isAddCameraModalOpen && (
+        <AddCameraModal 
+          onAddCamera={addCamera}
+          onClose={handleCloseAddCameraModal}
+        />
+      )}
+      {notifications.map(n => (
+          <Notification key={n.id} notification={n} onDismiss={dismissNotification} />
+      ))}
     </div>
   );
 }

@@ -1,140 +1,211 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Camera, LogEntry } from '../types';
+import { useState, useEffect, useCallback } from 'react';
+import type { Camera, LogEntry, Notification } from '../types';
 import { CameraStatus } from '../types';
 
-export const useApi = () => {
+// --- MOCK DATA ---
+
+const MOCK_CAMERAS: Camera[] = [
+  {
+    id: 'cam-001',
+    name: 'Lobby Entrance',
+    type: 'IP',
+    url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', // Public HLS test stream
+    status: CameraStatus.ONLINE,
+    ping: 24,
+    signal: 95,
+    lastSeen: new Date().toISOString(),
+    settings: { brightness: 100, contrast: 100, isNightVision: false },
+  },
+  {
+    id: 'cam-002',
+    name: 'Rooftop Drone',
+    type: 'Android',
+    url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+    status: CameraStatus.RECORDING,
+    ping: 45,
+    signal: 88,
+    lastSeen: new Date().toISOString(),
+    settings: { brightness: 110, contrast: 95, isNightVision: false },
+  },
+  {
+    id: 'cam-003',
+    name: 'Server Room',
+    type: 'USB',
+    url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+    status: CameraStatus.ONLINE,
+    ping: 12,
+    signal: 100,
+    lastSeen: new Date().toISOString(),
+    settings: { brightness: 80, contrast: 120, isNightVision: true },
+  },
+  {
+    id: 'cam-004',
+    name: 'Parking Lot West',
+    type: 'IP',
+    url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+    status: CameraStatus.OFFLINE,
+    ping: -1,
+    signal: -1,
+    lastSeen: new Date(Date.now() - 1000 * 60 * 15).toISOString(), // 15 mins ago
+    settings: { brightness: 100, contrast: 100, isNightVision: false },
+  },
+  {
+    id: 'cam-005',
+    name: 'West Corridor',
+    type: 'IP',
+    url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+    status: CameraStatus.ONLINE,
+    ping: 33,
+    signal: 92,
+    lastSeen: new Date().toISOString(),
+    settings: { brightness: 90, contrast: 110, isNightVision: false },
+  },
+  {
+    id: 'cam-006',
+    name: 'Loading Bay',
+    type: 'IP',
+    url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+    status: CameraStatus.ONLINE,
+    ping: 51,
+    signal: 78,
+    lastSeen: new Date().toISOString(),
+    settings: { brightness: 100, contrast: 100, isNightVision: false },
+  },
+];
+
+const MOCK_LOG_MESSAGES: Omit<LogEntry, 'timestamp'>[] = [
+    { message: 'Motion detected: Lobby Entrance.', level: 'warn' },
+    { message: 'Signal strength fluctuating for Rooftop Drone.', level: 'warn' },
+    { message: 'User \'admin\' accessed Server Room feed.', level: 'info' },
+    { message: 'Firmware update available for IP cameras.', level: 'info' },
+    { message: 'High temperature alert: Server Room.', level: 'error' },
+];
+
+
+export const useApi = (addNotification: (message: string, level: Notification['level']) => void) => {
     const [cameras, setCameras] = useState<Camera[]>([]);
     const [logs, setLogs] = useState<LogEntry[]>([]);
-    const wsRef = useRef<WebSocket | null>(null);
 
     const addLog = useCallback((log: Omit<LogEntry, 'timestamp'> & { timestamp?: Date | string }) => {
         const newLog = { ...log, timestamp: new Date(log.timestamp || new Date()) };
         setLogs(prevLogs => [newLog, ...prevLogs.slice(0, 99)]);
-    }, []);
+        if (newLog.level === 'error') {
+            addNotification(newLog.message, 'error');
+        }
+    }, [addNotification]);
 
+    // Initial data load
     useEffect(() => {
-        const fetchCameras = async () => {
-            try {
-                const response = await fetch('/api/cameras');
-                if (!response.ok) {
-                    throw new Error(`API Error: ${response.status} ${response.statusText}`);
-                }
-                const data: Camera[] = await response.json();
-                const camerasWithDefaults = data.map(cam => ({
-                    ...cam,
-                    settings: cam.settings || { brightness: 100, contrast: 100, isNightVision: false }
-                }));
-                setCameras(camerasWithDefaults);
-                addLog({ message: 'System initialized. Connected to camera network.', level: 'info' });
-            } catch (error) {
-                console.error("Failed to fetch cameras:", error);
-                addLog({ message: `Failed to connect to camera network: ${error instanceof Error ? error.message : 'Unknown error'}`, level: 'error' });
-            }
-        };
-        fetchCameras();
+        setCameras(MOCK_CAMERAS);
+        addLog({ message: 'System initialized. Connected to mock camera network.', level: 'info' });
+    }, [addLog]);
 
-        const connectWebSocket = () => {
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${wsProtocol}//${window.location.host}/ws/events`;
-            
-            wsRef.current = new WebSocket(wsUrl);
-
-            wsRef.current.onopen = () => {
-                console.log('WebSocket connection established.');
-                addLog({ message: 'Real-time event stream connected.', level: 'info' });
-            };
-
-            wsRef.current.onmessage = (event) => {
-                try {
-                    const message = JSON.parse(event.data);
-                    console.log('WebSocket message received:', message);
-
-                    switch (message.type) {
-                        case 'CAMERA_UPDATE': {
-                            const updatedCamera = message.payload as Camera;
-                            setCameras(prevCameras =>
-                                prevCameras.map(cam =>
-                                    cam.id === updatedCamera.id ? { ...cam, ...updatedCamera } : cam
-                                )
-                            );
-                            break;
+    // Simulate real-time updates
+    useEffect(() => {
+        const interval = setInterval(() => {
+            // Update camera stats and status
+            setCameras(prevCameras => {
+                return prevCameras.map(cam => {
+                    // Handle ONLINE/RECORDING cameras
+                    if (cam.status !== CameraStatus.OFFLINE) {
+                        // 5% chance to go offline, but not if it's the last one
+                        if (Math.random() < 0.05 && prevCameras.filter(c => c.status !== CameraStatus.OFFLINE).length > 1) {
+                            addLog({ message: `Connection lost to '${cam.name}'.`, level: 'error' });
+                            return { ...cam, status: CameraStatus.OFFLINE, ping: -1, signal: -1, lastSeen: new Date().toISOString() };
                         }
-                        case 'NEW_LOG': {
-                            addLog(message.payload as LogEntry);
-                            break;
-                        }
-                        default:
-                            console.warn('Unknown WebSocket message type:', message.type);
+                        // Otherwise, update stats
+                        return {
+                            ...cam,
+                            ping: Math.max(10, cam.ping + Math.floor(Math.random() * 10) - 5),
+                            signal: Math.max(70, Math.min(100, cam.signal + Math.floor(Math.random() * 4) - 2)),
+                            lastSeen: new Date().toISOString(),
+                        };
                     }
-                } catch (error) {
-                    console.error('Error parsing WebSocket message:', error);
-                }
-            };
+                    
+                    // Handle OFFLINE cameras: attempt reconnection
+                    // 20% chance to come back online
+                    if (cam.status === CameraStatus.OFFLINE && Math.random() < 0.2) {
+                        addLog({ message: `Reconnection successful for '${cam.name}'. Stream is now online.`, level: 'info' });
+                        return {
+                            ...cam,
+                            status: CameraStatus.ONLINE,
+                            ping: Math.floor(Math.random() * 40) + 10,
+                            signal: Math.floor(Math.random() * 20) + 80,
+                            lastSeen: new Date().toISOString(),
+                        };
+                    }
+                    
+                    // No change for offline cameras that stay offline
+                    return cam;
+                });
+            });
 
-            wsRef.current.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                addLog({ message: 'Real-time event stream connection error.', level: 'error' });
-            };
-
-            wsRef.current.onclose = () => {
-                console.log('WebSocket connection closed. Reconnecting...');
-                addLog({ message: 'Real-time event stream disconnected. Attempting to reconnect...', level: 'warn' });
-                setTimeout(connectWebSocket, 5000);
-            };
-        };
-        connectWebSocket();
-
-        return () => {
-            if (wsRef.current) {
-                wsRef.current.onclose = null;
-                wsRef.current.close();
+            // Add a random log
+            if (Math.random() > 0.7) {
+                 const randomLog = MOCK_LOG_MESSAGES[Math.floor(Math.random() * MOCK_LOG_MESSAGES.length)];
+                 addLog(randomLog);
             }
-        };
+        }, 5000);
+
+        return () => clearInterval(interval);
     }, [addLog]);
 
     const updateCamera = useCallback(async (updatedCamera: Camera) => {
         setCameras(prevCameras =>
             prevCameras.map(cam => (cam.id === updatedCamera.id ? updatedCamera : cam))
         );
-
-        try {
-            const response = await fetch(`/api/cameras/${updatedCamera.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedCamera),
-            });
-            if (!response.ok) {
-                throw new Error('Failed to update camera settings.');
-            }
-            addLog({ message: `Settings updated for camera '${updatedCamera.name}'.`, level: 'info' });
-        } catch (error) {
-            console.error(error);
-            addLog({ message: `Failed to update settings for '${updatedCamera.name}'.`, level: 'error' });
-        }
+        addLog({ message: `Settings updated for camera '${updatedCamera.name}'.`, level: 'info' });
     }, [addLog]);
 
-    const toggleRecording = useCallback(async (cameraId: string) => {
-        const camera = cameras.find(cam => cam.id === cameraId);
-        if (!camera || camera.status === CameraStatus.OFFLINE) return;
-
-        const isCurrentlyRecording = camera.status === CameraStatus.RECORDING;
-        const action = isCurrentlyRecording ? 'stop' : 'start';
-
-        try {
-            const response = await fetch(`/api/cameras/${cameraId}/record`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action }),
+    const toggleRecording = useCallback((cameraId: string) => {
+        setCameras(prevCameras => {
+            const newCameras = prevCameras.map(cam => {
+                if (cam.id === cameraId && cam.status !== CameraStatus.OFFLINE) {
+                    const isRecording = cam.status === CameraStatus.RECORDING;
+                    const newStatus = isRecording ? CameraStatus.ONLINE : CameraStatus.RECORDING;
+                    addLog({ message: `${isRecording ? 'Stopped' : 'Started'} recording on '${cam.name}'.`, level: 'info' });
+                    return { ...cam, status: newStatus };
+                }
+                return cam;
             });
-            if (!response.ok) {
-                throw new Error(`Failed to ${action} recording.`);
-            }
-            addLog({ message: `Request to ${action} recording for '${camera.name}' sent.`, level: 'info' });
-        } catch (error) {
-            console.error(error);
-            addLog({ message: `Failed to send command to ${action} recording for '${camera.name}'.`, level: 'error' });
-        }
-    }, [cameras, addLog]);
+            return newCameras;
+        });
+    }, [addLog]);
 
-    return { cameras, logs, updateCamera, toggleRecording };
+    const addCamera = useCallback(async (name: string, url:string) => {
+        const newCamera: Camera = {
+            id: `cam-${Date.now()}`,
+            name,
+            url,
+            type: 'IP',
+            status: CameraStatus.ONLINE, // Assume online until a check fails
+            ping: Math.floor(Math.random() * 30) + 10,
+            signal: Math.floor(Math.random() * 20) + 80,
+            lastSeen: new Date().toISOString(),
+            settings: {
+                brightness: 100,
+                contrast: 100,
+                isNightVision: false,
+            },
+        };
+        setCameras(prevCameras => [...prevCameras, newCamera]);
+        const message = `New camera source added: '${name}'.`;
+        addLog({ message, level: 'info' });
+        addNotification(message, 'success');
+    }, [addLog, addNotification]);
+    
+    const setCameraOffline = useCallback((cameraId: string) => {
+        setCameras(prevCameras =>
+            prevCameras.map(cam => {
+                if (cam.id === cameraId && cam.status !== CameraStatus.OFFLINE) {
+                    addLog({ message: `Stream error for '${cam.name}'. Setting to OFFLINE.`, level: 'error' });
+                    return { ...cam, status: CameraStatus.OFFLINE, ping: -1, signal: -1, lastSeen: new Date().toISOString() };
+                }
+                return cam;
+            })
+        );
+    }, [addLog]);
+
+
+    return { cameras, logs, updateCamera, toggleRecording, addCamera, setCameraOffline };
 };

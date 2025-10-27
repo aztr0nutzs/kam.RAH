@@ -28,3 +28,9 @@ export interface LogEntry {
   message: string;
   level: 'info' | 'warn' | 'error';
 }
+
+export interface Notification {
+  id: number;
+  message: string;
+  level: 'info' | 'success' | 'error';
+}
