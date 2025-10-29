@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { Notification as NotificationType } from '../types';
 
@@ -23,7 +24,7 @@ export const Notification: React.FC<NotificationProps> = ({ notification, onDism
 
   return (
     <div 
-      className={`fixed bottom-24 right-4 max-w-sm w-full bg-black/80 border-2 ${colors[notification.level]} rounded-lg p-4 shadow-2xl animate-fade-in-up z-50`}
+      className={`max-w-sm w-full bg-black/80 border-2 ${colors[notification.level]} rounded-lg p-4 shadow-2xl animate-fade-in-up`}
       role="alert"
     >
       <p>{notification.message}</p>

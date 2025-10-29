@@ -10,9 +10,10 @@ interface FeedGridProps {
   onSelectCamera: (camera: Camera) => void;
   onToggleRecording: (cameraId: string) => void;
   onSetCameraOffline: (cameraId: string) => void;
+  onUpdateCamera: (camera: Camera) => void;
 }
 
-export const FeedGrid: React.FC<FeedGridProps> = ({ cameras, layout, selectedCamera, onSelectCamera, onToggleRecording, onSetCameraOffline }) => {
+export const FeedGrid: React.FC<FeedGridProps> = ({ cameras, layout, selectedCamera, onSelectCamera, onToggleRecording, onSetCameraOffline, onUpdateCamera }) => {
   const gridClasses = {
     '1x1': 'grid-cols-1 grid-rows-1',
     '2x2': 'grid-cols-2 grid-rows-2',
@@ -33,6 +34,7 @@ export const FeedGrid: React.FC<FeedGridProps> = ({ cameras, layout, selectedCam
           onClick={() => onSelectCamera(camera)}
           onToggleRecording={onToggleRecording}
           onSetCameraOffline={onSetCameraOffline}
+          onUpdateCamera={onUpdateCamera}
         />
       ))}
     </div>

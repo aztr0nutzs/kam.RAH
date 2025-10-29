@@ -1,8 +1,7 @@
-
 {
-  "name": "task-manager-backend",
+  "name": "cybersec-command-backend",
   "version": "1.0.0",
-  "description": "Backend service for a task management application",
+  "description": "Backend service for the CyberSec Command camera dashboard",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -21,6 +20,7 @@
     "mongoose": "^8.4.1",
     "morgan": "^1.10.0",
     "swagger-ui-express": "^5.0.1",
+    "ws": "^8.17.0",
     "yamljs": "^0.3.0"
   },
   "devDependencies": {

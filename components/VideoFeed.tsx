@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import Hls from 'hls.js';
 import type { Camera } from '../types';
@@ -10,6 +11,7 @@ interface VideoFeedProps {
   onClick: () => void;
   onToggleRecording: (cameraId: string) => void;
   onSetCameraOffline: (cameraId: string) => void;
+  onUpdateCamera: (camera: Camera) => void;
 }
 
 const FeedControlButton: React.FC<{ onClick?: (e: React.MouseEvent) => void, children: React.ReactNode, active?: boolean }> = ({ onClick, children, active }) => (
@@ -63,9 +65,8 @@ const StreamHealthDot: React.FC<{ health: 'good' | 'fair' | 'poor' }> = ({ healt
 };
 
 
-const VideoFeedComponent: React.FC<VideoFeedProps> = ({ camera, isSelected, onClick, onToggleRecording, onSetCameraOffline }) => {
+const VideoFeedComponent: React.FC<VideoFeedProps> = ({ camera, isSelected, onClick, onToggleRecording, onSetCameraOffline, onUpdateCamera }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isNightVision, setIsNightVision] = useState(camera.settings.isNightVision);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [streamHealth, setStreamHealth] = useState<'good' | 'fair' | 'poor'>('good');
 
@@ -129,9 +130,19 @@ const VideoFeedComponent: React.FC<VideoFeedProps> = ({ camera, isSelected, onCl
 
     return () => clearInterval(intervalId);
   }, [isOnline]);
+  
+  const handleToggleNightVision = () => {
+    onUpdateCamera({
+      ...camera,
+      settings: {
+        ...camera.settings,
+        isNightVision: !camera.settings.isNightVision,
+      }
+    });
+  };
 
   const filterStyle = {
-    filter: `brightness(${camera.settings.brightness}%) contrast(${camera.settings.contrast}%) ${isNightVision ? 'grayscale(1) invert(1)' : ''}`
+    filter: `brightness(${camera.settings.brightness}%) contrast(${camera.settings.contrast}%) ${camera.settings.isNightVision ? 'grayscale(1) invert(1)' : ''}`
   };
 
   const renderContent = () => {
@@ -180,8 +191,8 @@ const VideoFeedComponent: React.FC<VideoFeedProps> = ({ camera, isSelected, onCl
       </div>
 
       <div className="absolute bottom-2 right-2 flex flex-col space-y-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <FeedControlButton onClick={() => setIsNightVision(!isNightVision)} active={isNightVision}>
-              {isNightVision ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+          <FeedControlButton onClick={handleToggleNightVision} active={camera.settings.isNightVision}>
+              {camera.settings.isNightVision ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
           </FeedControlButton>
           <FeedControlButton>
               <ZoomInIcon className="w-5 h-5" />

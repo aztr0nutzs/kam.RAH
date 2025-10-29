@@ -1,51 +1,101 @@
-
 openapi: 3.0.0
 info:
-  title: Task Manager API
+  title: CyberSec Command API
   version: 1.0.0
-  description: A simple API for managing tasks and users.
+  description: API for managing cameras, streams, and recordings for the CyberSec dashboard.
 servers:
-  - url: http://localhost:5000/api
+  - url: http://127.0.0.1:5000/api
     description: Development server
 
 components:
   schemas:
-    User:
+    CameraSettings:
       type: object
       properties:
-        _id:
+        brightness:
+          type: integer
+          default: 100
+        contrast:
+          type: integer
+          default: 100
+        isNightVision:
+          type: boolean
+          default: false
+        resolution:
+          type: string
+          enum: [1080p, 720p, 480p]
+        fps:
+          type: integer
+        bitrate:
+          type: integer
+        codec:
+          type: string
+          enum: [H.264, H.265]
+        ptz:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            presets:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  value:
+                    type: string
+        motionDetection:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            sensitivity:
+              type: integer
+        recording:
+          type: object
+          properties:
+            mode:
+              type: string
+              enum: [continuous, motion, schedule, off]
+            retentionDays:
+              type: integer
+
+    Camera:
+      type: object
+      properties:
+        id:
           type: string
           example: 60d0fe4f5311236168a109ca
         name:
           type: string
-          example: John Doe
-        email:
+          example: Lobby Entrance
+        type:
           type: string
-          example: john.doe@example.com
-    Task:
-      type: object
-      required:
-        - title
-      properties:
-        _id:
+          enum: [IP, USB, Android]
+        url:
           type: string
-          example: 60d0fe4f5311236168a109cb
-        user:
-          type: string
-          description: The ID of the user who owns the task.
-        title:
-          type: string
-          example: "Buy groceries"
-        description:
-          type: string
-          example: "Milk, Bread, Cheese"
+          example: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
         status:
           type: string
-          enum: [pending, in-progress, completed]
-          default: pending
-        dueDate:
+          enum: [ONLINE, OFFLINE, RECORDING]
+        ping:
+          type: integer
+        signal:
+          type: integer
+        lastSeen:
           type: string
           format: date-time
+        isFavorite:
+          type: boolean
+        location:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        settings:
+          $ref: '#/components/schemas/CameraSettings'
     Error:
       type: object
       properties:
@@ -59,140 +109,51 @@ components:
       bearerFormat: JWT
 
 paths:
-  /users/register:
-    post:
-      summary: Register a new user
-      tags: [Users]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [name, email, password]
-              properties:
-                name:
-                  type: string
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-                  format: password
-      responses:
-        '201':
-          description: User registered successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/User'
-                  - type: object
-                    properties:
-                      token:
-                        type: string
-        '400':
-          description: Invalid input or user already exists
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /users/login:
-    post:
-      summary: Authenticate a user and get a token
-      tags: [Users]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-                  format: password
-      responses:
-        '200':
-          description: User authenticated successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/User'
-                  - type: object
-                    properties:
-                      token:
-                        type: string
-        '401':
-          description: Invalid credentials
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /tasks:
+  /cameras:
     get:
-      summary: Get all tasks for the authenticated user
-      tags: [Tasks]
-      security:
-        - bearerAuth: []
+      summary: Get all cameras
+      tags: [Cameras]
       responses:
         '200':
-          description: A list of tasks
+          description: A list of cameras
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Task'
-        '401':
-          description: Not authorized
+                  $ref: '#/components/schemas/Camera'
     post:
-      summary: Create a new task
-      tags: [Tasks]
-      security:
-        - bearerAuth: []
+      summary: Create a new camera
+      tags: [Cameras]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [title]
+              required: [name, url]
               properties:
-                title:
+                name:
                   type: string
-                description:
+                url:
                   type: string
-                status:
+                type:
                   type: string
-                  enum: [pending, in-progress, completed]
-                dueDate:
-                  type: string
-                  format: date-time
+                  enum: [IP, USB, Android]
       responses:
         '201':
-          description: Task created successfully
+          description: Camera created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Task'
+                $ref: '#/components/schemas/Camera'
         '400':
           description: Invalid input
-        '401':
-          description: Not authorized
 
-  /tasks/{id}:
+  /cameras/{id}:
     get:
-      summary: Get a specific task by ID
-      tags: [Tasks]
-      security:
-        - bearerAuth: []
+      summary: Get a camera by ID
+      tags: [Cameras]
       parameters:
         - in: path
           name: id
@@ -201,58 +162,16 @@ paths:
             type: string
       responses:
         '200':
-          description: Task details
+          description: Camera details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Task'
-        '401':
-          description: Not authorized
+                $ref: '#/components/schemas/Camera'
         '404':
-          description: Task not found
-    put:
-      summary: Update a task
-      tags: [Tasks]
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                description:
-                  type: string
-                status:
-                  type: string
-                  enum: [pending, in-progress, completed]
-                dueDate:
-                  type: string
-                  format: date-time
-      responses:
-        '200':
-          description: Task updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Task'
-        '401':
-          description: Not authorized
-        '404':
-          description: Task not found
+          description: Camera not found
     delete:
-      summary: Delete a task
-      tags: [Tasks]
-      security:
-        - bearerAuth: []
+      summary: Delete a camera
+      tags: [Cameras]
       parameters:
         - in: path
           name: id
@@ -261,7 +180,7 @@ paths:
             type: string
       responses:
         '200':
-          description: Task deleted successfully
+          description: Camera deleted successfully
           content:
             application/json:
               schema:
@@ -269,7 +188,65 @@ paths:
                 properties:
                   message:
                     type: string
-        '401':
-          description: Not authorized
+
+  /cameras/{id}/control:
+    post:
+      summary: Update camera settings
+      tags: [Cameras]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                settings:
+                  $ref: '#/components/schemas/CameraSettings'
+      responses:
+        '200':
+          description: Settings updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camera'
         '404':
-          description: Task not found
+          description: Camera not found
+
+  /cameras/{id}/record:
+    post:
+      summary: Start or stop recording for a camera
+      tags: [Cameras]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [record]
+              properties:
+                record:
+                  type: boolean
+                  description: "true to start recording, false to stop"
+      responses:
+        '200':
+          description: Recording status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camera'
+        '400':
+          description: Camera is offline
+        '404':
+          description: Camera not found
