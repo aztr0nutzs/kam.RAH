@@ -1,4 +1,3 @@
-
 export enum CameraStatus {
   ONLINE = 'ONLINE',
   OFFLINE = 'OFFLINE',
@@ -54,4 +53,18 @@ export interface Notification {
   id: number;
   message: string;
   level: 'info' | 'success' | 'error';
+}
+
+/**
+ * Represents a Task managed by the system.
+ */
+export interface Task {
+  _id: string; // MongoDB primary key
+  title: string;
+  description: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  ownerId: string; // Ref to User ID
+  createdAt: string; // ISO Date string
+  updatedAt: string; // ISO Date string
+  meta?: Record<string, any>; // Flexible JSON metadata
 }

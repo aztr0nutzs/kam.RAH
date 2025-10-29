@@ -7,12 +7,14 @@ export default defineConfig(({ mode }) => {
     return {
       server: {
         port: 3000,
-        host: '0.0.0.0',
+        host: '127.0.0.1', // Hardened: Bind to 127.0.0.1 by default
       },
       plugins: [react()],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        // P0-1: Removed GEMINI_API_KEY. Do not inline secrets into client builds.
+        'process.env.NODE_ENV': JSON.stringify(env.NODE_ENV),
+        // P2-2: Expose the non-sensitive demo mode flag
+        'process.env.VITE_DEMO_MODE': JSON.stringify(env.VITE_DEMO_MODE),
       },
       resolve: {
         alias: {

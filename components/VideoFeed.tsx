@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import Hls from 'hls.js';
 import type { Camera } from '../types';
@@ -14,10 +13,11 @@ interface VideoFeedProps {
   onUpdateCamera: (camera: Camera) => void;
 }
 
-const FeedControlButton: React.FC<{ onClick?: (e: React.MouseEvent) => void, children: React.ReactNode, active?: boolean }> = ({ onClick, children, active }) => (
+const FeedControlButton: React.FC<{ onClick?: (e: React.MouseEvent) => void, children: React.ReactNode, active?: boolean, 'aria-label': string }> = ({ onClick, children, active, 'aria-label': ariaLabel }) => (
     <button 
         onClick={(e) => { e.stopPropagation(); onClick?.(e); }}
         className={`p-2 rounded-full transition-all duration-200 backdrop-blur-sm ${active ? 'bg-[var(--color-neon-cyan)]/80 text-black neon-glow-cyan' : 'bg-black/50 hover:bg-[var(--color-neon-cyan)]/50'}`}
+        aria-label={ariaLabel}
     >
         {children}
     </button>
@@ -191,16 +191,16 @@ const VideoFeedComponent: React.FC<VideoFeedProps> = ({ camera, isSelected, onCl
       </div>
 
       <div className="absolute bottom-2 right-2 flex flex-col space-y-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <FeedControlButton onClick={handleToggleNightVision} active={camera.settings.isNightVision}>
-              {camera.settings.isNightVision ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+          <FeedControlButton onClick={handleToggleNightVision} active={camera.settings.isNightVision} aria-label={camera.settings.isNightVision ? 'Disable night vision' : 'Enable night vision'}>
+              {camera.settings.isNightVision ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-s" />}
           </FeedControlButton>
-          <FeedControlButton>
+          <FeedControlButton onClick={() => { /* // TODO: API only - Implement zoom functionality */ }} aria-label="Zoom in">
               <ZoomInIcon className="w-5 h-5" />
           </FeedControlButton>
-          <FeedControlButton>
+          <FeedControlButton onClick={() => { /* // TODO: API only - Implement snapshot functionality */ }} aria-label="Take snapshot">
               <SnapshotIcon className="w-5 h-5" />
           </FeedControlButton>
-          <FeedControlButton onClick={() => onToggleRecording(camera.id)} active={camera.status === CameraStatus.RECORDING}>
+          <FeedControlButton onClick={() => onToggleRecording(camera.id)} active={camera.status === CameraStatus.RECORDING} aria-label={camera.status === CameraStatus.RECORDING ? 'Stop recording' : 'Start recording'}>
               <RecordIcon className="w-5 h-5" />
           </FeedControlButton>
       </div>

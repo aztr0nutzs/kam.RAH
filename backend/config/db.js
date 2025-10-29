@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
@@ -11,4 +10,18 @@ const connectDB = async () => {
   }
 };
 
-module.exports = connectDB;
+/**
+ * Checks the health of the MongoDB connection.
+ * @returns {Promise<boolean>} - True if connected (readyState 1), false otherwise.
+ */
+const checkDBHealth = async () => {
+  try {
+    // readyState: 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+    return mongoose.connection.readyState === 1;
+  } catch (error) {
+    console.error('DB health check failed:', error);
+    return false;
+  }
+};
+
+module.exports = { connectDB, checkDBHealth };

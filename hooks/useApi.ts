@@ -19,6 +19,11 @@ export const useApi = (addNotification: (message: string, level: Notification['l
         let errorMessage = 'An unknown error occurred.';
         if (error instanceof ApiError) {
             errorMessage = error.message;
+            if (error.status === 401) {
+              // Specific handling for auth errors
+              errorMessage = 'Authentication failed. Please log in again.';
+              // Could also trigger a logout action here
+            }
         } else if (error instanceof Error) {
             errorMessage = error.message;
         }
@@ -36,8 +41,16 @@ export const useApi = (addNotification: (message: string, level: Notification['l
             return;
         }
 
-        const wsUrl = `ws://127.0.0.1:5000/ws/events`;
-        wsRef.current = new WebSocket(wsUrl);
+        // P0-3: Parameterize WebSocket URL
+        const wsUrl = (import.meta.env?.VITE_WS_URL as string) || 'ws://127.0.0.1:5000/ws/events';
+        
+        // Add auth token to WebSocket connection query
+        const token = localStorage.getItem('authToken');
+        const authedWsUrl = wsUrl.includes('?') 
+            ? `${wsUrl}&token=${token}` 
+            : `${wsUrl}?token=${token}`;
+
+        wsRef.current = new WebSocket(authedWsUrl);
 
         wsRef.current.onopen = () => {
             addLog({ message: 'Real-time connection to server established.', level: 'info'});
@@ -46,7 +59,10 @@ export const useApi = (addNotification: (message: string, level: Notification['l
         wsRef.current.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                addLog({ message: `Event received: ${data.event}`, level: 'info' });
+                
+                if(data.event !== 'pong') { // Avoid logging keep-alive pongs
+                    addLog({ message: `Event received: ${data.event}`, level: 'info' });
+                }
                 
                 switch(data.event) {
                     case 'camera_status_update':
@@ -65,6 +81,11 @@ export const useApi = (addNotification: (message: string, level: Notification['l
                         addLog({ message: `Motion detected on camera: ${data.payload.name}`, level: 'warn' });
                         addNotification(`Motion detected on ${data.payload.name}!`, 'info');
                         break;
+                    case 'auth_failed':
+                        addLog({ message: `WebSocket authentication failed: ${data.message}`, level: 'error' });
+                        addNotification('Real-time connection failed (Auth).', 'error');
+                        wsRef.current?.close(1008, 'Auth failed');
+                        break;
                     default:
                         break;
                 }
@@ -79,6 +100,10 @@ export const useApi = (addNotification: (message: string, level: Notification['l
         };
         
         wsRef.current.onclose = (event) => {
+            if (event.code === 4001 || event.code === 1008) { // 4001=Custom Unauthorized, 1008=Policy Violation
+                addLog({ message: 'WebSocket closed due to auth failure. Wont retry.', level: 'error' });
+                return; // Do not retry
+            }
             if (reconnectTimerRef.current) {
                 return; // Reconnect already scheduled
             }
@@ -96,25 +121,25 @@ export const useApi = (addNotification: (message: string, level: Notification['l
         };
 
     }, [addLog, addNotification]);
+    
+    const loadInitialData = useCallback(async (isMounted: boolean) => {
+        try {
+            addLog({ message: 'Initializing system... Contacting command server.', level: 'info' });
+            const initialCameras = await apiClient.getCameras();
+            if (isMounted) {
+                const validCameras = initialCameras || [];
+                setCameras(validCameras);
+                addLog({ message: `Found ${validCameras.length} camera devices.`, level: 'info' });
+            }
+        } catch (error) {
+            handleApiError(error, 'Failed to connect to server');
+        }
+    }, [addLog, handleApiError]);
 
     useEffect(() => {
         let isMounted = true;
         
-        async function loadInitialData() {
-            try {
-                addLog({ message: 'Initializing system... Contacting command server.', level: 'info' });
-                const initialCameras = await apiClient.getCameras();
-                if (isMounted) {
-                    const validCameras = initialCameras || [];
-                    setCameras(validCameras);
-                    addLog({ message: `Found ${validCameras.length} camera devices.`, level: 'info' });
-                }
-            } catch (error) {
-                handleApiError(error, 'Failed to connect to server');
-            }
-        }
-        
-        loadInitialData();
+        loadInitialData(isMounted);
         setupWebSocket();
 
         return () => {
@@ -127,18 +152,26 @@ export const useApi = (addNotification: (message: string, level: Notification['l
                 wsRef.current.close();
             }
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    // Re-run setup if auth changes (e.g., login/logout)
+    // We can't detect localStorage changes directly, so this relies on a parent component re-rendering.
+    // For a more robust solution, a global auth context would be better.
+    }, [loadInitialData, setupWebSocket]);
 
 
     // --- API Actions ---
 
     const updateCamera = useCallback(async (updatedCamera: Camera) => {
+        // Optimistic update for responsive UI
+        setCameras(prev => prev.map(c => c.id === updatedCamera.id ? updatedCamera : c));
         try {
-            await apiClient.updateCameraSettings(updatedCamera.id, updatedCamera.settings);
+            // Send only the settings payload
+            const confirmedCamera = await apiClient.updateCameraSettings(updatedCamera.id, updatedCamera.settings);
+            // Re-sync with confirmed state from server
+            setCameras(prev => prev.map(c => c.id === confirmedCamera.id ? confirmedCamera : c));
             addLog({ message: `Settings update command sent to '${updatedCamera.name}'.`, level: 'info' });
         } catch (error) {
             handleApiError(error, `Failed to update settings for ${updatedCamera.name}`);
+            // TODO: Could revert optimistic update here by re-fetching camera
         }
     }, [handleApiError, addLog]);
 
@@ -147,7 +180,12 @@ export const useApi = (addNotification: (message: string, level: Notification['l
             const cam = cameras.find(c => c.id === cameraId);
             if (!cam) return;
             const shouldRecord = cam.status !== CameraStatus.RECORDING;
-            await apiClient.toggleRecording(cameraId, shouldRecord);
+            
+            // Call API and get confirmed state
+            const updatedCamera = await apiClient.toggleRecording(cameraId, shouldRecord);
+            
+            // Update local state with confirmed camera
+            setCameras(prev => prev.map(c => c.id === updatedCamera.id ? updatedCamera : c));
             addLog({ message: `Toggle recording command sent to '${cam.name}'.`, level: 'info' });
         } catch (error) {
             handleApiError(error, `Failed to toggle recording`);
@@ -158,7 +196,11 @@ export const useApi = (addNotification: (message: string, level: Notification['l
         try {
             const cam = cameras.find(c => c.id === cameraId);
             if (!cam) return;
-            const updatedCamera = await apiClient.toggleFavorite(cameraId, cam.isFavorite);
+
+            // Send the *new* desired state
+            const newFavoriteState = !cam.isFavorite;
+            const updatedCamera = await apiClient.toggleFavorite(cameraId, newFavoriteState);
+            
             setCameras(prev => prev.map(c => c.id === updatedCamera.id ? updatedCamera : c));
             addLog({ message: `'${updatedCamera.name}' favorite status updated.`, level: 'info' });
         } catch (error) {
@@ -168,11 +210,20 @@ export const useApi = (addNotification: (message: string, level: Notification['l
 
     const startAllRecording = useCallback(async () => {
         addLog({ message: 'Sending command: start recording on all cameras.', level: 'info' });
-        const promises = cameras
-            .filter(cam => cam.status === CameraStatus.ONLINE)
-            .map(cam => apiClient.toggleRecording(cam.id, true));
+        const camerasToStart = cameras.filter(cam => cam.status === CameraStatus.ONLINE);
+        const promises = camerasToStart.map(cam => apiClient.toggleRecording(cam.id, true));
+        
         try {
-            await Promise.all(promises);
+            const updatedCameras = await Promise.all(promises);
+            
+            // Update state with all returned cameras
+            setCameras(prev => {
+                const newCamerasMap = new Map(prev.map(c => [c.id, c]));
+                updatedCameras.forEach(updatedCam => {
+                    newCamerasMap.set(updatedCam.id, updatedCam);
+                });
+                return Array.from(newCamerasMap.values());
+            });
             addNotification('Started recording on all online cameras.', 'info');
         } catch (error) {
             handleApiError(error, 'Failed to start all recordings');
@@ -181,11 +232,20 @@ export const useApi = (addNotification: (message: string, level: Notification['l
     
     const stopAllRecording = useCallback(async () => {
         addLog({ message: 'Sending command: stop recording on all cameras.', level: 'info' });
-        const promises = cameras
-            .filter(cam => cam.status === CameraStatus.RECORDING)
-            .map(cam => apiClient.toggleRecording(cam.id, false));
+        const camerasToStop = cameras.filter(cam => cam.status === CameraStatus.RECORDING);
+        const promises = camerasToStop.map(cam => apiClient.toggleRecording(cam.id, false));
+
         try {
-            await Promise.all(promises);
+            const updatedCameras = await Promise.all(promises);
+            
+            // Update state with all returned cameras
+            setCameras(prev => {
+                const newCamerasMap = new Map(prev.map(c => [c.id, c]));
+                updatedCameras.forEach(updatedCam => {
+                    newCamerasMap.set(updatedCam.id, updatedCam);
+                });
+                return Array.from(newCamerasMap.values());
+            });
             addNotification('Stopped recording on all cameras.', 'info');
         } catch (error) {
             handleApiError(error, 'Failed to stop all recordings');
@@ -194,6 +254,7 @@ export const useApi = (addNotification: (message: string, level: Notification['l
 
     const addCamera = useCallback(async (name: string, url:string) => {
         try {
+            // The WS event `camera_added` will handle adding to state
             await apiClient.addCamera(name, url);
         } catch (error) {
             handleApiError(error, `Failed to add new camera`);
@@ -204,7 +265,8 @@ export const useApi = (addNotification: (message: string, level: Notification['l
         setCameras(prev =>
             prev.map(cam => {
                 if (cam.id === cameraId && cam.status !== CameraStatus.OFFLINE) {
-                    addLog({ message: `Client-side stream error for '${cam.name}'. Marking as OFFLLINE.`, level: 'warn' });
+                    // P0-3: Fix "OFFLLINE" typo
+                    addLog({ message: `Client-side stream error for '${cam.name}'. Marking as OFFLINE.`, level: 'warn' });
                     return { ...cam, status: CameraStatus.OFFLINE, ping: -1, signal: -1, lastSeen: new Date().toISOString() };
                 }
                 return cam;
