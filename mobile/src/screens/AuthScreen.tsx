@@ -42,6 +42,10 @@ export const AuthScreen: React.FC = () => {
     }
   }, [error]);
 
+  useEffect(() => {
+    setError(null);
+  }, [email, password]);
+
   const passwordRequirements = useMemo(() => {
     if (mode !== 'register') {
       return [];
