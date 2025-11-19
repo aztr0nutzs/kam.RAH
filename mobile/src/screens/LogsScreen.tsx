@@ -8,7 +8,7 @@ export const LogsScreen: React.FC = () => {
   const { logs } = useData();
   const { isRTL } = useLocalization();
   const { t } = useTranslation();
-  const directionStyle = useMemo(() => ({ textAlign: isRTL ? 'right' : 'left' }), [isRTL]);
+  const directionStyle = useMemo(() => ({ textAlign: (isRTL ? 'right' : 'left') as 'left' | 'right' }), [isRTL]);
 
   return (
     <View style={styles.container}>

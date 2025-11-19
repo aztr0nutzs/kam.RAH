@@ -3,7 +3,6 @@ import { captureError } from './logger';
 
 const secureOptions: SecureStore.SecureStoreOptions = {
   keychainService: 'kamrah-auth',
-  accessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
 };
 
 export const writeSecureJson = async <T>(key: string, value: T) => {

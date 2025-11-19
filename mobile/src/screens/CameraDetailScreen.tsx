@@ -16,7 +16,7 @@ export const CameraDetailScreen: React.FC = () => {
   const camera = useMemo(() => cameras.find((c) => c.id === route.params.cameraId), [cameras, route.params.cameraId]);
   const { locale, isRTL } = useLocalization();
   const { t } = useTranslation();
-  const directionStyle = useMemo(() => ({ textAlign: isRTL ? 'right' : 'left' }), [isRTL]);
+  const directionStyle = useMemo(() => ({ textAlign: (isRTL ? 'right' : 'left') as 'left' | 'right' }), [isRTL]);
   const headingRef = useRef<Text | null>(null);
 
   useEffect(() => {

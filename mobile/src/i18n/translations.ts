@@ -1,4 +1,4 @@
-export const en = {
+export const en: Record<string, string> = {
   'common.enabled': 'Enabled',
   'common.disabled': 'Disabled',
   'common.days': 'days',
@@ -102,13 +102,13 @@ export const en = {
   'format.unknown': 'Unknown',
   'format.notAvailable': 'N/A',
   'format.latency': '{{value}} ms',
-} as const;
+};
 
 export type TranslationShape = typeof en;
 export type TranslationKey = keyof TranslationShape;
 export type Locale = 'en' | 'es' | 'ar';
 
-export const es: TranslationShape = {
+export const es: Record<string, string> = {
   'common.enabled': 'Habilitado',
   'common.disabled': 'Deshabilitado',
   'common.days': 'días',
@@ -212,9 +212,9 @@ export const es: TranslationShape = {
   'format.unknown': 'Desconocido',
   'format.notAvailable': 'N/D',
   'format.latency': '{{value}} ms',
-} as const;
+};
 
-export const ar: TranslationShape = {
+export const ar: Record<string, string> = {
   'common.enabled': 'مفعل',
   'common.disabled': 'معطل',
   'common.days': 'أيام',
@@ -317,7 +317,7 @@ export const ar: TranslationShape = {
   'format.unknown': 'غير معروف',
   'format.notAvailable': 'غير متاح',
   'format.latency': '{{value}} مللي ثانية',
-} as const;
+};
 
 export const translations: Record<Locale, TranslationShape> = { en, es, ar };
 export const supportedLocales: Locale[] = ['en', 'es', 'ar'];

@@ -26,7 +26,7 @@ export const AuthScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const directionStyle = useMemo(() => ({ writingDirection: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left' }), [
+  const directionStyle = useMemo(() => ({ writingDirection: (isRTL ? 'rtl' : 'ltr') as 'ltr' | 'rtl', textAlign: (isRTL ? 'right' : 'left') as 'left' | 'right' }), [
     isRTL,
   ]);
 

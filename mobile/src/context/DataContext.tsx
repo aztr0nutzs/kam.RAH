@@ -193,7 +193,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         ...prev.slice(0, 99),
       ]);
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -304,7 +306,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     setRefreshing(true);
     try {
       logInfo('Refreshing camera/task inventory');
-      const [fetchedCameras, fetchedTasks] = await Promise.all([apiClient.getCameras(), apiClient.getTasks()]);
+      const [fetchedCameras, fetchedTasks] = await Promise.all([apiClient.getCameras() as Promise<Camera[]>, apiClient.getTasks() as Promise<Task[]>]);
       if (fetchedCameras) {
         setCameras(fetchedCameras);
         persistCameras(realm, fetchedCameras);
@@ -366,7 +368,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       }
       try {
         logInfo('Toggling favorite flag', { cameraId });
-        const updated = await apiClient.toggleFavorite(cameraId, camera.isFavorite, nextFavorite);
+        const updated = await apiClient.toggleFavorite(cameraId, camera.isFavorite, nextFavorite) as Camera;
         applyLocalCamera(updated);
       } catch (error) {
         captureError(error, 'Failed to toggle favorite', { cameraId });
@@ -396,7 +398,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       }
       try {
         logInfo('Toggling recording state', { cameraId });
-        const updated = await apiClient.toggleRecording(cameraId, shouldRecord);
+        const updated = await apiClient.toggleRecording(cameraId, shouldRecord) as Camera;
         applyLocalCamera(updated);
       } catch (error) {
         captureError(error, 'Failed to toggle recording', { cameraId });
@@ -426,7 +428,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       }
       try {
         logInfo('Updating camera settings', { cameraId });
-        const updated = await apiClient.updateCameraSettings(cameraId, settings);
+        const updated = await apiClient.updateCameraSettings(cameraId, settings) as Camera;
         applyLocalCamera(updated);
       } catch (error) {
         captureError(error, 'Failed to update camera settings', { cameraId });

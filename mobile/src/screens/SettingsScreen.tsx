@@ -11,7 +11,7 @@ export const SettingsScreen: React.FC = () => {
   const [status, setStatus] = useState<string | null>(null);
   const { t } = useTranslation();
   const { locale, setLocale, availableLocales, isRTL } = useLocalization();
-  const directionStyle = useMemo(() => ({ textAlign: isRTL ? 'right' : 'left' }), [isRTL]);
+  const directionStyle = useMemo(() => ({ textAlign: (isRTL ? 'right' : 'left') as 'left' | 'right' }), [isRTL]);
 
   const handleSave = async () => {
     await updateConnectionSettings({ apiBaseUrl, wsUrl });

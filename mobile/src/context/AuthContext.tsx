@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { User } from '../types/domain';
+import type { User, AuthResponse } from '../types/domain';
 import * as apiClient from '../api/client';
 import { SECURE_STORAGE_KEYS, STORAGE_KEYS } from '../config/appConfig';
 import { deleteSecureItem, readSecureJson, writeSecureJson } from '../utils/secureStore';
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const response = await apiClient.login(email, password);
+      const response = await apiClient.login(email, password) as AuthResponse;
       await persistSession(response.token, response.user);
     },
     [persistSession]
@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const register = useCallback(
     async (name: string, email: string, password: string) => {
-      const response = await apiClient.register(name, email, password);
+      const response = await apiClient.register(name, email, password) as AuthResponse;
       await persistSession(response.token, response.user);
     },
     [persistSession]

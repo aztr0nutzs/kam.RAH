@@ -14,7 +14,7 @@ export const DashboardScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<DashboardStackParamList>>();
   const { isRTL } = useLocalization();
   const { t } = useTranslation();
-  const directionStyle = useMemo(() => ({ textAlign: isRTL ? 'right' : 'left' }), [isRTL]);
+  const directionStyle = useMemo(() => ({ textAlign: (isRTL ? 'right' : 'left') as 'left' | 'right' }), [isRTL]);
 
   return (
     <View style={styles.container}>

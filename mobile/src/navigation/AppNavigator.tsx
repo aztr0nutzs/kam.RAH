@@ -41,7 +41,7 @@ const HelpScreen = lazy(() => import('../screens/HelpScreen').then((m) => ({ def
 const Tab = createBottomTabNavigator();
 
 const SuspenseFallback = () => (
-  <View style={styles.fallbackContainer} accessibilityRole="status">
+  <View style={styles.fallbackContainer}>
     <ActivityIndicator color="#00f7ff" />
     <Text style={styles.fallbackText}>Loading module...</Text>
   </View>

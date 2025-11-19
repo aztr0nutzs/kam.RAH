@@ -7,7 +7,7 @@ export const HelpScreen: React.FC = () => {
   const { connectionSettings, isOnline, pendingMutations, syncingMutations } = useData();
   const { isRTL } = useLocalization();
   const { t } = useTranslation();
-  const directionStyle = useMemo(() => ({ textAlign: isRTL ? 'right' : 'left' }), [isRTL]);
+  const directionStyle = useMemo(() => ({ textAlign: (isRTL ? 'right' : 'left') as 'left' | 'right' }), [isRTL]);
   const connectionCopy = isOnline ? t('help.connection.online') : t('help.connection.offline');
 
   return (
