@@ -16,8 +16,8 @@ export const HelpScreen: React.FC = () => {
       <View style={styles.card} accessible accessibilityLabel={`${t('help.connection.title')}: ${connectionCopy}`}>
         <Text style={styles.cardTitle}>{t('help.connection.title')}</Text>
         <Text style={[styles.cardBody, directionStyle]}>{connectionCopy}</Text>
-        <Text style={styles.cardFoot}>API: {connectionSettings.apiBaseUrl}</Text>
-        <Text style={styles.cardFoot}>WS: {connectionSettings.wsUrl}</Text>
+        <Text style={styles.cardFoot}>{t('help.connection.apiLabel')}: {connectionSettings.apiBaseUrl}</Text>
+        <Text style={styles.cardFoot}>{t('help.connection.wsLabel')}: {connectionSettings.wsUrl}</Text>
         {!isOnline && (
           <Text style={styles.cardFoot}>
             {t('help.connection.pending', {

@@ -72,7 +72,7 @@ export const OnboardingCarousel: React.FC<OnboardingCarouselProps> = ({ visible,
           style={styles.card}
           accessible
           accessibilityRole="summary"
-          accessibilityLabel={`Onboarding slide ${currentIndex + 1} of ${slides.length}. ${currentSlide.title}`}
+          accessibilityLabel={t('onboarding.slideLabel', { current: currentIndex + 1, total: slides.length, title: currentSlide.title })}
         >
           <View style={styles.badgeContainer}>
             <Text style={styles.badge}>{currentSlide.badge}</Text>
