@@ -11,17 +11,14 @@ import { ApiClientError } from '../api/client';
 import {
   CameraRecord,
   PendingMutationRecord,
-  TaskRecord,
   MutationType,
   useRealm,
   useQuery,
   persistCameras,
-  persistTasks,
   enqueueMutation,
   completeMutation,
   incrementRetry,
   mapCameraRecords,
-  mapTaskRecords,
 } from '../persistence';
 import { captureError, logInfo, logWarn, registerLogListener } from '../utils/logger';
 import { useSyncScheduler } from '../hooks/useSyncScheduler';
@@ -37,7 +34,6 @@ const parsePayload = <T,>(payload: string): T | null => {
 
 interface DataContextValue {
   cameras: Camera[];
-  tasks: Task[];
   logs: LogEntry[];
   refreshing: boolean;
   refresh: () => Promise<void>;
@@ -57,10 +53,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const { token } = useAuth();
   const realm = useRealm();
   const cameraRecords = useQuery(CameraRecord);
-  const taskRecords = useQuery(TaskRecord);
   const mutationRecords = useQuery(PendingMutationRecord);
   const [cameras, setCameras] = useState<Camera[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [connectionSettings, setConnectionSettings] = useState<ConnectionSettings>(defaultConnectionSettings);
@@ -123,14 +117,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           return true;
         }
         await apiClient.updateCameraSettings(payload.cameraId, payload.settings);
-        return true;
-      }
-      case 'task:update': {
-        const payload = parsePayload<{ taskId: string; changes: Partial<Task> }>(record.payload);
-        if (!payload) {
-          return true;
-        }
-        await apiClient.updateTask(payload.taskId, payload.changes);
         return true;
       }
       default:
@@ -202,9 +188,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     setCameras(mapCameraRecords(cameraRecords));
   }, [cameraRecords]);
 
-  useEffect(() => {
-    setTasks(mapTaskRecords(taskRecords));
-  }, [taskRecords]);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -244,18 +227,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         break;
       case 'camera_removed':
         setCameras((prev) => prev.filter((cam) => cam.id !== event.payload.id));
-        break;
-      case 'task_created':
-        setTasks((prev) => [event.payload, ...prev.filter((task) => task.id !== event.payload.id)]);
-        persistTasks(realm, [event.payload]);
-        break;
-      case 'task_updated':
-      case 'task_triggered':
-        setTasks((prev) => prev.map((task) => (task.id === event.payload.id ? event.payload : task)));
-        persistTasks(realm, [event.payload]);
-        break;
-      case 'task_deleted':
-        setTasks((prev) => prev.filter((task) => task.id !== event.payload.id));
         break;
       case 'log_entry':
         setLogs((prev) => [
@@ -306,15 +277,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     setRefreshing(true);
     try {
       logInfo('Refreshing camera/task inventory');
-      const [fetchedCameras, fetchedTasks] = await Promise.all([apiClient.getCameras() as Promise<Camera[]>, apiClient.getTasks() as Promise<Task[]>]);
-      if (fetchedCameras) {
-        setCameras(fetchedCameras);
-        persistCameras(realm, fetchedCameras);
-      }
-      if (fetchedTasks) {
-        setTasks(fetchedTasks);
-        persistTasks(realm, fetchedTasks);
-      }
+      const fetchedCameras = await apiClient.getCameras() as Camera[];
+      setCameras(fetchedCameras);
+      persistCameras(realm, fetchedCameras);
     } catch (error) {
       captureError(error, 'Failed to refresh data');
     } finally {
@@ -325,7 +290,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!token) {
       setCameras([]);
-      setTasks([]);
       setLogs([]);
       disconnect();
       return;
@@ -449,7 +413,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const value = useMemo<DataContextValue>(
     () => ({
       cameras,
-      tasks,
       logs,
       refreshing,
       refresh,
@@ -464,7 +427,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }),
     [
       cameras,
-      tasks,
       logs,
       refreshing,
       refresh,

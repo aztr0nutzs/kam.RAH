@@ -52,8 +52,6 @@ const routes = {
     method: 'POST',
     transformRequest: (body: { isFavorite: boolean }) => body,
   } satisfies ApiRoute<{ isFavorite: boolean }, Camera>,
-  getTasks: { path: '/tasks', method: 'GET' } satisfies ApiRoute<void, Task[]>,
-  updateTask: { path: '/tasks/:id', method: 'PUT' } satisfies ApiRoute<Partial<Task>, Task>,
 };
 
 export const configureClient = (config: { apiBaseUrl?: string; wsUrl?: string }) => {
@@ -146,10 +144,6 @@ export const toggleFavorite = (cameraId: string, currentFavorite: boolean, overr
   return request(routes.toggleFavorite, { body: { isFavorite: nextValue }, params: { id: cameraId } });
 };
 
-export const getTasks = () => request(routes.getTasks);
-
-export const updateTask = (taskId: string, payload: Partial<Task>) =>
-  request(routes.updateTask, { body: payload, params: { id: taskId } });
 
 export const getWebsocketUrl = (token?: string | null) => {
   const url = new URL(websocketUrl);
