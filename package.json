@@ -11,7 +11,12 @@
   "dependencies": {
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "hls.js": "^1.6.13"
+    "hls.js": "^1.6.13",
+    "react-native-safe-area-context": "^5.6.2",
+    "@expo/vector-icons": "^15.0.3",
+    "react-native": "^0.82.1",
+    "expo-av": "^16.0.7",
+    "expo-secure-store": "^15.0.7"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

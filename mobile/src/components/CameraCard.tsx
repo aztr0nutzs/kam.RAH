@@ -1,105 +1,141 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import type { Camera } from '../types/domain';
-import { StatusBadge } from './StatusBadge';
-import { useTranslation } from '../context/LocalizationContext';
-import { optimizeMediaUrl } from '../utils/media';
 
-interface Props {
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
+import { Ionicons } from '@expo/vector-icons';
+import { Camera, CameraStatus } from '../types/domain';
+import { colors, typography, shadow } from '../theme/theme';
+
+interface CameraCardProps {
   camera: Camera;
-  onPress: () => void;
-  onToggleFavorite: () => void;
-  onToggleRecording: () => void;
+  isSelected: boolean;
+  onSelect: (camera: Camera) => void;
+  onToggleRecording: (id: string) => void;
 }
 
-export const CameraCard: React.FC<Props> = ({ camera, onPress, onToggleFavorite, onToggleRecording }) => {
-  const { t } = useTranslation();
-  const optimizedPreview = optimizeMediaUrl(camera.previewUrl);
+export const CameraCard: React.FC<CameraCardProps> = ({ camera, isSelected, onSelect, onToggleRecording }) => {
+  const isOnline = camera.status !== CameraStatus.OFFLINE;
+
   return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={camera.name}
-      accessibilityHint={t('camera.card.openHint')}
+    <TouchableOpacity 
+      style={[
+        styles.container, 
+        isSelected && styles.selectedContainer
+      ]}
+      onPress={() => onSelect(camera)}
+      activeOpacity={0.9}
     >
-      {optimizedPreview && (
-        <Image
-          source={{ uri: optimizedPreview }}
-          style={styles.preview}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          accessibilityIgnoresInvertColors
+      {isOnline ? (
+        <Video
+          source={{ uri: camera.url }}
+          style={styles.video}
+          resizeMode={ResizeMode.COVER}
+          shouldPlay={isOnline}
+          isMuted={true}
+          onError={(e) => console.log('Video Error', e)}
         />
+      ) : (
+        <View style={[styles.video, styles.offlineContainer]}>
+          <Ionicons name="cloud-offline" size={40} color={colors.danger} />
+          <Text style={styles.offlineText}>OFFLINE</Text>
+        </View>
       )}
-      <View style={styles.header}>
-        <Text style={styles.title}>{camera.name}</Text>
-        <StatusBadge status={camera.status} />
+
+      {/* Overlay Info */}
+      <View style={styles.overlayTop}>
+        <Text style={styles.cameraName} numberOfLines={1}>{camera.name}</Text>
+        {camera.status === CameraStatus.RECORDING && (
+          <View style={styles.recBadge}>
+            <View style={styles.recDot} />
+            <Text style={styles.recText}>REC</Text>
+          </View>
+        )}
       </View>
-      <Text style={styles.meta}>{camera.location || t('camera.unassigned')}</Text>
-      <View style={styles.actions}>
-        <TouchableOpacity
-          onPress={onToggleFavorite}
-          accessibilityRole="button"
-          accessibilityLabel={camera.isFavorite ? t('camera.favorite.remove') : t('camera.favorite.add')}
-        >
-          <Ionicons name={camera.isFavorite ? 'star' : 'star-outline'} size={20} color="#ffd700" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={onToggleRecording}
-          accessibilityRole="button"
-          accessibilityLabel={
-            camera.status === 'RECORDING' ? t('camera.record.stop') : t('camera.record.start')
-          }
-        >
-          <Ionicons
-            name={camera.status === 'RECORDING' ? 'stop-circle' : 'play-circle'}
-            size={24}
-            color={camera.status === 'RECORDING' ? '#ff4d4d' : '#00f7ff'}
-          />
-        </TouchableOpacity>
+
+      {/* Overlay Controls */}
+      <View style={styles.overlayBottom}>
+         <TouchableOpacity onPress={() => onToggleRecording(camera.id)}>
+            <Ionicons 
+              name={camera.status === CameraStatus.RECORDING ? "stop-circle-outline" : "radio-button-on"} 
+              size={24} 
+              color={camera.status === CameraStatus.RECORDING ? colors.neonPink : colors.textPrimary} 
+            />
+         </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#090b20',
-    padding: 16,
-    borderRadius: 12,
+  container: {
+    flex: 1,
+    margin: 4,
+    aspectRatio: 16/9,
+    backgroundColor: '#111',
+    borderRadius: 8,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(0,247,255,0.1)',
-    marginBottom: 12,
+    borderColor: colors.borderSubtle,
   },
-  header: {
+  selectedContainer: {
+    borderColor: colors.neonCyan,
+    borderWidth: 2,
+    ...shadow.neonCyan,
+  },
+  video: {
+    width: '100%',
+    height: '100%',
+  },
+  offlineContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0a0a0a',
+  },
+  offlineText: {
+    color: colors.danger,
+    fontFamily: typography.orbitron,
+    marginTop: 8,
+  },
+  overlayTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    padding: 6,
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  preview: {
-    width: '100%',
-    height: 140,
-    borderRadius: 10,
-    marginBottom: 12,
-    backgroundColor: '#040612',
+  cameraName: {
+    color: colors.textPrimary,
+    fontFamily: typography.monospace,
+    fontSize: 12,
+    fontWeight: 'bold',
+    maxWidth: '70%',
   },
-  title: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  meta: {
-    color: '#8288a0',
-    marginTop: 4,
-  },
-  actions: {
+  recBadge: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
     alignItems: 'center',
-    marginTop: 12,
-    gap: 16,
+    backgroundColor: 'rgba(255,0,0,0.6)',
+    paddingHorizontal: 6,
+    borderRadius: 4,
   },
+  recDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'white',
+    marginRight: 4,
+  },
+  recText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  overlayBottom: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    padding: 6,
+  }
 });

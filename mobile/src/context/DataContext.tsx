@@ -1,453 +1,171 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-community/netinfo';
-import type { ReactNode } from 'react';
-import type { Camera, CameraSettings, LogEntry, Task } from '../types/domain';
-import { CameraStatus } from '../types/domain';
-import { ConnectionSettings, STORAGE_KEYS, defaultConnectionSettings } from '../config/appConfig';
-import { useAuth } from './AuthContext';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { Camera, LogEntry, Notification, CameraStatus } from '../types/domain';
 import * as apiClient from '../api/client';
-import { ApiClientError } from '../api/client';
-import {
-  CameraRecord,
-  PendingMutationRecord,
-  MutationType,
-  useRealm,
-  useQuery,
-  persistCameras,
-  enqueueMutation,
-  completeMutation,
-  incrementRetry,
-  mapCameraRecords,
-} from '../persistence';
-import { captureError, logInfo, logWarn, registerLogListener } from '../utils/logger';
-import { useSyncScheduler } from '../hooks/useSyncScheduler';
+import { WS_BASE_URL } from '../config/appConfig';
 
-const parsePayload = <T,>(payload: string): T | null => {
-  try {
-    return JSON.parse(payload) as T;
-  } catch (error) {
-    captureError(error, 'Failed to parse mutation payload');
-    return null;
-  }
-};
-
-interface DataContextValue {
+interface DataContextType {
   cameras: Camera[];
   logs: LogEntry[];
-  refreshing: boolean;
-  refresh: () => Promise<void>;
-  toggleFavorite: (cameraId: string) => Promise<void>;
-  toggleRecording: (cameraId: string) => Promise<void>;
-  updateCameraSettings: (cameraId: string, settings: Partial<CameraSettings>) => Promise<void>;
-  connectionSettings: ConnectionSettings;
-  updateConnectionSettings: (settings: ConnectionSettings) => Promise<void>;
-  isOnline: boolean;
-  pendingMutations: number;
-  syncingMutations: boolean;
+  notifications: Notification[];
+  addNotification: (message: string, level: Notification['level']) => void;
+  dismissNotification: (id: number) => void;
+  refreshCameras: () => Promise<void>;
+  updateCamera: (camera: Camera) => Promise<void>;
+  toggleRecording: (id: string) => Promise<void>;
+  toggleFavorite: (id: string) => Promise<void>;
+  addCamera: (name: string, url: string) => Promise<void>;
 }
 
-const DataContext = createContext<DataContextValue | undefined>(undefined);
+const DataContext = createContext<DataContextType | undefined>(undefined);
 
-export const DataProvider = ({ children }: { children: ReactNode }) => {
-  const { token } = useAuth();
-  const realm = useRealm();
-  const cameraRecords = useQuery(CameraRecord);
-  const mutationRecords = useQuery(PendingMutationRecord);
+export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
-  const [connectionSettings, setConnectionSettings] = useState<ConnectionSettings>(defaultConnectionSettings);
-  const [isOnline, setIsOnline] = useState(true);
-  const [syncingMutations, setSyncingMutations] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
-  const processingQueueRef = useRef(false);
-  const pendingMutations = mutationRecords.length;
 
-  const shouldQueueMutation = useCallback(
-    (error?: unknown) => {
-      if (!isOnline) {
-        return true;
-      }
-      if (error instanceof ApiClientError) {
-        return error.status >= 500 || error.status === 408 || error.status === 429;
-      }
-      return true;
-    },
-    [isOnline]
-  );
-
-  const queueMutation = useCallback(
-    (type: MutationType, payload: Record<string, unknown>) => {
-      enqueueMutation(realm, type, payload);
-      logWarn('Queued offline mutation', { type });
-    },
-    [realm]
-  );
-
-  const applyLocalCamera = useCallback(
-    (updated: Camera) => {
-      setCameras((prev) => prev.map((cam) => (cam.id === updated.id ? updated : cam)));
-      persistCameras(realm, [updated]);
-    },
-    [realm]
-  );
-
-  const executeMutation = useCallback(async (record: PendingMutationRecord) => {
-    switch (record.type) {
-      case 'camera:favorite': {
-        const payload = parsePayload<{ cameraId: string; target: boolean }>(record.payload);
-        if (!payload) {
-          return true;
-        }
-        await apiClient.toggleFavorite(payload.cameraId, payload.target, payload.target);
-        return true;
-      }
-      case 'camera:recording': {
-        const payload = parsePayload<{ cameraId: string; shouldRecord: boolean }>(record.payload);
-        if (!payload) {
-          return true;
-        }
-        await apiClient.toggleRecording(payload.cameraId, payload.shouldRecord);
-        return true;
-      }
-      case 'camera:update': {
-        const payload = parsePayload<{ cameraId: string; settings: Partial<CameraSettings> }>(record.payload);
-        if (!payload) {
-          return true;
-        }
-        await apiClient.updateCameraSettings(payload.cameraId, payload.settings);
-        return true;
-      }
-      default:
-        return true;
-    }
+  const addLog = useCallback((log: Omit<LogEntry, 'timestamp'>) => {
+    const newLog = { ...log, timestamp: new Date().toISOString() };
+    setLogs(prev => [newLog, ...prev.slice(0, 99)]);
   }, []);
 
-  const flushMutationQueue = useCallback(async () => {
-    if (!token || !isOnline || processingQueueRef.current) {
-      return;
-    }
-    const ordered = Array.from(mutationRecords.sorted('createdAt'));
-    if (!ordered.length) {
-      return;
-    }
-    processingQueueRef.current = true;
-    setSyncingMutations(true);
+  const addNotification = useCallback((message: string, level: Notification['level'] = 'info') => {
+    const newNotif = { id: Date.now(), message, level };
+    setNotifications(prev => [newNotif, ...prev]);
+    // Auto dismiss
+    setTimeout(() => {
+      setNotifications(current => current.filter(n => n.id !== newNotif.id));
+    }, 5000);
+  }, []);
+
+  const dismissNotification = (id: number) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const refreshCameras = useCallback(async () => {
     try {
-      for (const record of ordered) {
-        try {
-          const shouldComplete = await executeMutation(record);
-          if (shouldComplete) {
-            completeMutation(realm, record._id);
-          }
-        } catch (error) {
-          incrementRetry(realm, record._id);
-          captureError(error, 'Failed to replay mutation', { mutationId: record._id });
-        }
+      const data = await apiClient.getCameras();
+      if(data) setCameras(data);
+    } catch (e: any) {
+      addLog({ message: `Failed to fetch cameras: ${e.message}`, level: 'error' });
+      // If it's a network error, notify the user visibly
+      if (e.message.includes('Network error')) {
+        addNotification(e.message, 'error');
       }
-    } finally {
-      processingQueueRef.current = false;
-      setSyncingMutations(false);
     }
-  }, [executeMutation, isOnline, mutationRecords, realm, token]);
+  }, [addLog, addNotification]);
 
+  // WebSocket Setup
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEYS.CONNECTION).then((value) => {
-      if (value) {
-        const parsed = JSON.parse(value) as ConnectionSettings;
-        setConnectionSettings(parsed);
-        apiClient.configureClient({ apiBaseUrl: parsed.apiBaseUrl, wsUrl: parsed.wsUrl });
-        logInfo('Restored persisted connection settings', { apiBaseUrl: parsed.apiBaseUrl });
-      } else {
-        apiClient.configureClient(defaultConnectionSettings);
-        logInfo('Using default connection settings', { apiBaseUrl: defaultConnectionSettings.apiBaseUrl });
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    AsyncStorage.setItem(STORAGE_KEYS.CONNECTION, JSON.stringify(connectionSettings));
-    apiClient.configureClient({ apiBaseUrl: connectionSettings.apiBaseUrl, wsUrl: connectionSettings.wsUrl });
-    logInfo('Applied new connection settings', { apiBaseUrl: connectionSettings.apiBaseUrl });
-  }, [connectionSettings]);
-
-  useEffect(() => {
-    const unsubscribe = registerLogListener((event) => {
-      setLogs((prev) => [
-        { id: event.id, message: event.message, level: event.level, timestamp: event.timestamp },
-        ...prev.slice(0, 99),
-      ]);
-    });
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    setCameras(mapCameraRecords(cameraRecords));
-  }, [cameraRecords]);
-
-
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      const reachable = Boolean(state.isInternetReachable ?? state.isConnected);
-      setIsOnline(reachable);
-      if (reachable) {
-        flushMutationQueue();
-      }
-    });
-    return unsubscribe;
-  }, [flushMutationQueue]);
-
-  useEffect(() => {
-    if (isOnline && pendingMutations > 0) {
-      flushMutationQueue();
-    }
-  }, [flushMutationQueue, isOnline, pendingMutations]);
-
-  const disconnect = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.onclose = null;
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-  }, []);
-
-  const handleRealtimeEvent = useCallback((event: any) => {
-    switch (event.event) {
-      case 'camera_status_update':
-      case 'camera_settings_update':
-        setCameras((prev) => prev.map((cam) => (cam.id === event.payload.id ? event.payload : cam)));
-        persistCameras(realm, [event.payload]);
-        break;
-      case 'camera_added':
-        setCameras((prev) => [...prev.filter((cam) => cam.id !== event.payload.id), event.payload]);
-        persistCameras(realm, [event.payload]);
-        break;
-      case 'camera_removed':
-        setCameras((prev) => prev.filter((cam) => cam.id !== event.payload.id));
-        break;
-      case 'log_entry':
-        setLogs((prev) => [
-          {
-            id: `${Date.now()}`,
-            message: event.payload.message,
-            level: event.payload.level,
-            timestamp: event.payload.timestamp ?? new Date().toISOString(),
-          },
-          ...prev.slice(0, 99),
-        ]);
-        break;
-      default:
-        break;
-    }
-  }, [realm]);
-
-  const attachWebSocket = useCallback(() => {
-    if (!token) {
-      return;
-    }
-
-    const ws = new WebSocket(apiClient.getWebsocketUrl(token));
-    ws.onopen = () => logInfo('Realtime telemetry link established');
-    ws.onmessage = (message) => {
-      try {
-        const payload = JSON.parse(message.data as string);
-        handleRealtimeEvent(payload);
-      } catch (error) {
-        captureError(error, 'Invalid WS payload');
-      }
-    };
-    ws.onerror = (error) => {
-      captureError(error, 'WebSocket error');
-    };
-    ws.onclose = (event) => {
-      logWarn('Realtime telemetry link closed', { code: event.code, reason: event.reason });
-      wsRef.current = null;
-      if (token) {
-        setTimeout(attachWebSocket, 5000);
-      }
-    };
-    wsRef.current = ws;
-  }, [handleRealtimeEvent, token]);
-
-  const refresh = useCallback(async () => {
-    if (!token) return;
-    setRefreshing(true);
-    try {
-      logInfo('Refreshing camera/task inventory');
-      const fetchedCameras = await apiClient.getCameras() as Camera[];
-      setCameras(fetchedCameras);
-      persistCameras(realm, fetchedCameras);
-    } catch (error) {
-      captureError(error, 'Failed to refresh data');
-    } finally {
-      setRefreshing(false);
-    }
-  }, [realm, token]);
-
-  useEffect(() => {
-    if (!token) {
-      setCameras([]);
-      setLogs([]);
-      disconnect();
-      return;
-    }
-    refresh();
-    attachWebSocket();
-    return () => disconnect();
-  }, [token, connectionSettings, attachWebSocket, refresh, disconnect]);
-
-  const scheduledJobs = useMemo(
-    () => [
-      {
-        id: 'refresh-snapshot',
-        intervalMs: 5 * 60 * 1000,
-        action: refresh,
-        requiresNetwork: true,
-      },
-      {
-        id: 'flush-mutations',
-        intervalMs: 30 * 1000,
-        action: flushMutationQueue,
-        requiresNetwork: true,
-      },
-    ],
-    [flushMutationQueue, refresh]
-  );
-
-  useSyncScheduler(scheduledJobs, { isOnline });
-
-  const toggleFavorite = useCallback(
-    async (cameraId: string) => {
-      const camera = cameras.find((c) => c.id === cameraId);
-      if (!camera) return;
-      const nextFavorite = !camera.isFavorite;
-      const optimistic = { ...camera, isFavorite: nextFavorite };
-      applyLocalCamera(optimistic);
-      if (!isOnline) {
-        queueMutation('camera:favorite', { cameraId, target: nextFavorite });
-        return;
-      }
-      try {
-        logInfo('Toggling favorite flag', { cameraId });
-        const updated = await apiClient.toggleFavorite(cameraId, camera.isFavorite, nextFavorite) as Camera;
-        applyLocalCamera(updated);
-      } catch (error) {
-        captureError(error, 'Failed to toggle favorite', { cameraId });
-        if (shouldQueueMutation(error)) {
-          queueMutation('camera:favorite', { cameraId, target: nextFavorite });
-        } else {
-          throw error;
-        }
-      }
-    },
-    [applyLocalCamera, cameras, isOnline, queueMutation, shouldQueueMutation]
-  );
-
-  const toggleRecording = useCallback(
-    async (cameraId: string) => {
-      const camera = cameras.find((c) => c.id === cameraId);
-      if (!camera) return;
-      const shouldRecord = camera.status !== CameraStatus.RECORDING;
-      const optimistic: Camera = {
-        ...camera,
-        status: shouldRecord ? CameraStatus.RECORDING : CameraStatus.ONLINE,
+    const connectWs = () => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
+      
+      console.log(`Connecting WS to ${WS_BASE_URL}`);
+      wsRef.current = new WebSocket(WS_BASE_URL);
+      
+      wsRef.current.onopen = () => {
+        addLog({ message: 'Connected to real-time server', level: 'info' });
       };
-      applyLocalCamera(optimistic);
-      if (!isOnline) {
-        queueMutation('camera:recording', { cameraId, shouldRecord });
-        return;
-      }
-      try {
-        logInfo('Toggling recording state', { cameraId });
-        const updated = await apiClient.toggleRecording(cameraId, shouldRecord) as Camera;
-        applyLocalCamera(updated);
-      } catch (error) {
-        captureError(error, 'Failed to toggle recording', { cameraId });
-        if (shouldQueueMutation(error)) {
-          queueMutation('camera:recording', { cameraId, shouldRecord });
-        } else {
-          throw error;
+
+      wsRef.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === 'camera_status_update' || data.event === 'camera_settings_update') {
+             setCameras(prev => prev.map(c => c.id === data.payload.id ? data.payload : c));
+          } else if (data.event === 'camera_added') {
+             setCameras(prev => [...prev, data.payload]);
+             addNotification(`Camera added: ${data.payload.name}`, 'success');
+          } else if (data.event === 'camera_removed') {
+             setCameras(prev => prev.filter(c => c.id !== data.payload.id));
+          } else if (data.event === 'motion_detected') {
+             addNotification(`Motion: ${data.payload.name}`, 'info');
+             addLog({ message: `Motion on ${data.payload.name}`, level: 'warn' });
+          }
+        } catch (e) {
+          console.warn('WS Parse Error', e);
         }
-      }
-    },
-    [applyLocalCamera, cameras, isOnline, queueMutation, shouldQueueMutation]
+      };
+
+      wsRef.current.onerror = (e: any) => {
+        // Improve logging for React Native WS errors. 
+        // The event object often has a 'message' property.
+        const errorMsg = e.message || 'Unknown connection error';
+        console.log('WS Error:', errorMsg);
+        // Don't flood logs/notifications on initial connect failure
+      };
+
+      wsRef.current.onclose = (e) => {
+        console.log('WS Closed', e.code, e.reason);
+        // addLog({ message: 'WS Disconnected. Reconnecting...', level: 'warn' });
+        setTimeout(connectWs, 5000);
+      };
+    };
+
+    refreshCameras();
+    connectWs();
+
+    return () => {
+      wsRef.current?.close();
+    };
+  }, [refreshCameras, addLog, addNotification]);
+
+  // Actions
+  const updateCamera = async (cam: Camera) => {
+    try {
+      await apiClient.updateCameraSettings(cam.id, cam.settings);
+      // Optimistic update
+      setCameras(prev => prev.map(c => c.id === cam.id ? cam : c));
+    } catch (e: any) {
+      addNotification('Failed to update settings', 'error');
+    }
+  };
+
+  const toggleRecording = async (id: string) => {
+    try {
+      const cam = cameras.find(c => c.id === id);
+      if (!cam) return;
+      const isRec = cam.status === CameraStatus.RECORDING;
+      await apiClient.toggleRecording(id, !isRec);
+      addNotification(`${!isRec ? 'Started' : 'Stopped'} recording on ${cam.name}`, 'info');
+    } catch (e: any) {
+      addNotification('Failed to toggle recording', 'error');
+    }
+  };
+
+  const toggleFavorite = async (id: string) => {
+    try {
+      const cam = cameras.find(c => c.id === id);
+      if (!cam) return;
+      await apiClient.toggleFavorite(id, cam.isFavorite);
+      setCameras(prev => prev.map(c => c.id === id ? { ...c, isFavorite: !c.isFavorite } : c));
+    } catch (e: any) {
+      addNotification('Failed to update favorite', 'error');
+    }
+  };
+
+  const addCamera = async (name: string, url: string) => {
+    try {
+      await apiClient.addCamera(name, url);
+      addNotification('Camera added successfully', 'success');
+    } catch (e: any) {
+      addNotification(e.message, 'error');
+      throw e;
+    }
+  };
+
+  return (
+    <DataContext.Provider value={{
+      cameras, logs, notifications,
+      addNotification, dismissNotification, refreshCameras,
+      updateCamera, toggleRecording, toggleFavorite, addCamera
+    }}>
+      {children}
+    </DataContext.Provider>
   );
-
-  const updateCameraSettings = useCallback(
-    async (cameraId: string, settings: Partial<CameraSettings>) => {
-      const camera = cameras.find((c) => c.id === cameraId);
-      if (camera) {
-        const optimistic: Camera = {
-          ...camera,
-          settings: { ...camera.settings, ...settings },
-        };
-        applyLocalCamera(optimistic);
-      }
-      if (!isOnline) {
-        queueMutation('camera:update', { cameraId, settings });
-        return;
-      }
-      try {
-        logInfo('Updating camera settings', { cameraId });
-        const updated = await apiClient.updateCameraSettings(cameraId, settings) as Camera;
-        applyLocalCamera(updated);
-      } catch (error) {
-        captureError(error, 'Failed to update camera settings', { cameraId });
-        if (shouldQueueMutation(error)) {
-          queueMutation('camera:update', { cameraId, settings });
-        } else {
-          throw error;
-        }
-      }
-    },
-    [applyLocalCamera, cameras, isOnline, queueMutation, shouldQueueMutation]
-  );
-
-  const updateConnectionSettings = useCallback(async (settings: ConnectionSettings) => {
-    setConnectionSettings(settings);
-  }, []);
-
-  const value = useMemo<DataContextValue>(
-    () => ({
-      cameras,
-      logs,
-      refreshing,
-      refresh,
-      toggleFavorite,
-      toggleRecording,
-      updateCameraSettings,
-      connectionSettings,
-      updateConnectionSettings,
-      isOnline,
-      pendingMutations,
-      syncingMutations,
-    }),
-    [
-      cameras,
-      logs,
-      refreshing,
-      refresh,
-      toggleFavorite,
-      toggleRecording,
-      updateCameraSettings,
-      connectionSettings,
-      updateConnectionSettings,
-      isOnline,
-      pendingMutations,
-      syncingMutations,
-    ]
-  );
-
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 };
 
 export const useData = () => {
-  const context = useContext(DataContext);
-  if (!context) {
-    throw new Error('useData must be used within DataProvider');
-  }
-  return context;
+  const ctx = useContext(DataContext);
+  if (!ctx) throw new Error('useData must be used within DataProvider');
+  return ctx;
 };

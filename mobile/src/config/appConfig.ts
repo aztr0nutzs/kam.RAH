@@ -1,23 +1,9 @@
-export const appConfig = {
-  API_BASE_URL: 'http://10.0.2.2:5000/api',
-  WS_URL: 'ws://10.0.2.2:5000/ws/events',
-};
 
-export type ConnectionSettings = {
-  apiBaseUrl: string;
-  wsUrl: string;
-};
+import { Platform } from 'react-native';
 
-export const defaultConnectionSettings: ConnectionSettings = {
-  apiBaseUrl: appConfig.API_BASE_URL,
-  wsUrl: appConfig.WS_URL,
-};
+// On Android Emulator, localhost is 10.0.2.2
+// On physical device, change this to your machine's local IP (e.g., 192.168.1.X)
+const DEV_HOST = Platform.OS === 'android' ? '10.0.2.2' : '127.0.0.1';
 
-export const STORAGE_KEYS = {
-  CONNECTION: 'kamrah-mobile:connection',
-  AUTH_LEGACY: 'kamrah-mobile:auth',
-};
-
-export const SECURE_STORAGE_KEYS = {
-  AUTH: 'kamrah-mobile:auth-secure',
-};
+export const API_BASE_URL = `http://${DEV_HOST}:5000/api`;
+export const WS_BASE_URL = `ws://${DEV_HOST}:5000/ws/events`;

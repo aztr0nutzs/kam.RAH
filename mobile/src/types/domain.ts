@@ -1,3 +1,4 @@
+
 export enum CameraStatus {
   ONLINE = 'ONLINE',
   OFFLINE = 'OFFLINE',
@@ -10,7 +11,7 @@ export interface CameraSettings {
   isNightVision: boolean;
   resolution: '1080p' | '720p' | '480p';
   fps: number;
-  bitrate: number;
+  bitrate: number; // in kbps
   codec: 'H.264' | 'H.265';
   ptz: {
     enabled: boolean;
@@ -18,7 +19,7 @@ export interface CameraSettings {
   };
   motionDetection: {
     enabled: boolean;
-    sensitivity: number;
+    sensitivity: number; // 0-100
   };
   recording: {
     mode: 'continuous' | 'motion' | 'schedule' | 'off';
@@ -30,8 +31,7 @@ export interface Camera {
   id: string;
   name: string;
   type: 'IP' | 'USB' | 'Android';
-  url: string;
-  previewUrl?: string;
+  url: string; // HLS/WebRTC stream URL
   status: CameraStatus;
   ping: number;
   signal: number;
@@ -42,46 +42,16 @@ export interface Camera {
   settings: CameraSettings;
 }
 
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'scheduled';
-export type TaskPriority = 'low' | 'medium' | 'high';
-export type TaskTrigger = 'manual' | 'schedule' | 'event';
-
-export interface TaskSchedule {
-  cron?: string;
-  timezone?: string;
-}
-
-export interface Task {
-  id: string;
-  name: string;
-  description?: string;
-  status: TaskStatus;
-  priority: TaskPriority;
-  triggerType: TaskTrigger;
-  schedule?: TaskSchedule;
-  targetCameras: string[];
-  action: 'record' | 'stopRecord' | 'snapshot' | 'ptz' | 'notify' | 'custom';
-  parameters?: Record<string, unknown>;
-  lastRunAt?: string;
-  nextRunAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
+export type GridLayout = '1x1' | '2x2' | '3x3';
 
 export interface LogEntry {
-  id: string;
+  timestamp: Date | string;
   message: string;
   level: 'info' | 'warn' | 'error';
-  timestamp: string;
 }
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-}
-
-export interface AuthResponse {
-  token: string;
-  user: User;
+export interface Notification {
+  id: number;
+  message: string;
+  level: 'info' | 'success' | 'error';
 }

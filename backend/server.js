@@ -86,6 +86,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, '127.0.0.1', () =>
-  console.log(`Server running in ${process.env.NODE_ENV} mode on http://127.0.0.1:${PORT}`)
+// Listen on 0.0.0.0 to allow connections from external devices/emulators
+server.listen(PORT, '0.0.0.0', () =>
+  console.log(`Server running in ${process.env.NODE_ENV} mode on http://0.0.0.0:${PORT}`)
 );
