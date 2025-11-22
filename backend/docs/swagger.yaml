@@ -1,0 +1,252 @@
+openapi: 3.0.0
+info:
+  title: CyberSec Command API
+  version: 1.0.0
+  description: API for managing cameras, streams, and recordings for the CyberSec dashboard.
+servers:
+  - url: http://127.0.0.1:5000/api
+    description: Development server
+
+components:
+  schemas:
+    CameraSettings:
+      type: object
+      properties:
+        brightness:
+          type: integer
+          default: 100
+        contrast:
+          type: integer
+          default: 100
+        isNightVision:
+          type: boolean
+          default: false
+        resolution:
+          type: string
+          enum: [1080p, 720p, 480p]
+        fps:
+          type: integer
+        bitrate:
+          type: integer
+        codec:
+          type: string
+          enum: [H.264, H.265]
+        ptz:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            presets:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  value:
+                    type: string
+        motionDetection:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            sensitivity:
+              type: integer
+        recording:
+          type: object
+          properties:
+            mode:
+              type: string
+              enum: [continuous, motion, schedule, off]
+            retentionDays:
+              type: integer
+
+    Camera:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 60d0fe4f5311236168a109ca
+        name:
+          type: string
+          example: Lobby Entrance
+        type:
+          type: string
+          enum: [IP, USB, Android]
+        url:
+          type: string
+          example: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+        status:
+          type: string
+          enum: [ONLINE, OFFLINE, RECORDING]
+        ping:
+          type: integer
+        signal:
+          type: integer
+        lastSeen:
+          type: string
+          format: date-time
+        isFavorite:
+          type: boolean
+        location:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        settings:
+          $ref: '#/components/schemas/CameraSettings'
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+paths:
+  /cameras:
+    get:
+      summary: Get all cameras
+      tags: [Cameras]
+      responses:
+        '200':
+          description: A list of cameras
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Camera'
+    post:
+      summary: Create a new camera
+      tags: [Cameras]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url]
+              properties:
+                name:
+                  type: string
+                url:
+                  type: string
+                type:
+                  type: string
+                  enum: [IP, USB, Android]
+      responses:
+        '201':
+          description: Camera created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camera'
+        '400':
+          description: Invalid input
+
+  /cameras/{id}:
+    get:
+      summary: Get a camera by ID
+      tags: [Cameras]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Camera details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camera'
+        '404':
+          description: Camera not found
+    delete:
+      summary: Delete a camera
+      tags: [Cameras]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Camera deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /cameras/{id}/control:
+    post:
+      summary: Update camera settings
+      tags: [Cameras]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                settings:
+                  $ref: '#/components/schemas/CameraSettings'
+      responses:
+        '200':
+          description: Settings updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camera'
+        '404':
+          description: Camera not found
+
+  /cameras/{id}/record:
+    post:
+      summary: Start or stop recording for a camera
+      tags: [Cameras]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [record]
+              properties:
+                record:
+                  type: boolean
+                  description: "true to start recording, false to stop"
+      responses:
+        '200':
+          description: Recording status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camera'
+        '400':
+          description: Camera is offline
+        '404':
+          description: Camera not found

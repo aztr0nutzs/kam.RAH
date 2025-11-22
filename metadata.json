@@ -1,0 +1,5 @@
+{
+  "name": "Kam.RAH",
+  "description": "A futuristic, cyberpunk-themed home security camera dashboard for monitoring live video feeds from various sources. Provides a clean, responsive layout with multi-camera grid views, per-feed controls, and real-time status updates.",
+  "requestFramePermissions": []
+}

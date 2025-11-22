@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CyberSec Command</title>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "hls.js": "https://aistudiocdn.com/hls.js@^1.6.13",
+    "react-native-safe-area-context": "https://aistudiocdn.com/react-native-safe-area-context@^5.6.2",
+    "@expo/vector-icons": "https://aistudiocdn.com/@expo/vector-icons@^15.0.3",
+    "react-native": "https://aistudiocdn.com/react-native@^0.82.1",
+    "expo-av": "https://aistudiocdn.com/expo-av@^16.0.7",
+    "expo-secure-store": "https://aistudiocdn.com/expo-secure-store@^15.0.7"
+  }
+}
+</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --color-bg: #000000;
+      --color-neon-pink: #ff00ff;
+      --color-neon-cyan: #00ffff;
+      --color-neon-mint: #39ff14;
+      --color-neon-purple: #9d00ff;
+      --font-family-sans: 'Source Code Pro', monospace;
+      --font-family-orbitron: 'Orbitron', sans-serif;
+    }
+
+    body {
+      background-color: var(--color-bg);
+      color: #e0e0e0;
+      font-family: var(--font-family-sans);
+      background-image:
+        linear-gradient(rgba(0, 255, 255, 0.2) 1px, transparent 1px),
+        linear-gradient(to right, rgba(0, 255, 255, 0.2) 1px, transparent 1px);
+      background-size: 40px 40px;
+      background-position: -1px -1px;
+      background-attachment: fixed;
+    }
+
+    .font-orbitron {
+      font-family: var(--font-family-orbitron);
+    }
+
+    /* Scrollbar styles */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #111;
+    }
+    ::-webkit-scrollbar-thumb {
+      background-color: var(--color-neon-cyan);
+      border-radius: 4px;
+      border: 2px solid #111;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: #5fffff;
+    }
+
+    /* Neon Glow Effects */
+    .neon-glow-pink {
+      box-shadow: 0 0 5px var(--color-neon-pink), 0 0 10px var(--color-neon-pink), 0 0 15px var(--color-neon-pink);
+    }
+    .neon-glow-cyan {
+      box-shadow: 0 0 5px var(--color-neon-cyan), 0 0 10px var(--color-neon-cyan), 0 0 15px var(--color-neon-cyan);
+    }
+    .neon-glow-cyan-sm {
+       box-shadow: 0 0 3px var(--color-neon-cyan), 0 0 6px var(--color-neon-cyan);
+    }
+    .text-glow-cyan {
+        color: var(--color-neon-cyan);
+        text-shadow: 0 0 2px var(--color-neon-cyan), 0 0 5px var(--color-neon-cyan);
+    }
+
+    /* Custom Input Range styles for sliders */
+    .range-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: var(--color-neon-purple);
+      cursor: pointer;
+      border-radius: 50%;
+      box-shadow: 0 0 5px var(--color-neon-purple), 0 0 10px var(--color-neon-purple);
+    }
+    .range-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: var(--color-neon-purple);
+      cursor: pointer;
+      border-radius: 50%;
+      box-shadow: 0 0 5px var(--color-neon-purple), 0 0 10px var(--color-neon-purple);
+    }
+    
+    /* Header title animation */
+    .animated-title-glow {
+        animation: flicker-glow 4s infinite;
+    }
+
+    @keyframes flicker-glow {
+        0%, 100% {
+            text-shadow: 0 0 5px var(--color-neon-pink), 0 0 10px var(--color-neon-pink), 0 0 20px var(--color-neon-pink), 0 0 40px var(--color-neon-purple);
+            color: var(--color-neon-pink);
+        }
+        50% {
+            text-shadow: 0 0 5px var(--color-neon-cyan), 0 0 10px var(--color-neon-cyan), 0 0 20px var(--color-neon-cyan), 0 0 40px #00aaff;
+            color: var(--color-neon-cyan);
+        }
+    }
+
+    /* Notification animation */
+    @keyframes fade-in-up {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    .animate-fade-in-up {
+        animation: fade-in-up 0.5s ease-out forwards;
+    }
+    
+    /* Ensure content is readable over the grid */
+    #root > .bg-black {
+        background-color: rgba(0,0,0,0.85) !important; /* Semi-transparent layer over the grid */
+    }
+
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
